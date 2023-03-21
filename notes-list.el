@@ -48,6 +48,7 @@
 (require 'svg-lib)
 (require 'svg-tag-mode)
 (require 'nano-theme)
+(require 'cl-lib)
 
 (defgroup notes-list nil
   "Note list"
@@ -109,7 +110,7 @@
             (img-height (* (+ (/ height dy) 1) dy))
             (char-width (+ (/ img-height dx) 1))
             (img-width (* char-width dx))
-            (thumbnail (cons (car image) (copy-list (cdr image)))))
+            (thumbnail (cons (car image) (cl-copy-list (cdr image)))))
       (plist-put (cdr thumbnail) :height img-height)
       (plist-put (cdr thumbnail) :width nil)
       (plist-put (cdr thumbnail) :ascent 80)
