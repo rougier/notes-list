@@ -383,7 +383,8 @@ need to be defined at top level as keywords."
     (setq-local cursor-type nil)
     (read-only-mode t)
     (add-hook 'window-size-change-functions #'notes-list--resize-hook)))
-      
+
+;;;###autoload
 (defun notes-list ()
   "Display note list in current buffer"
   
@@ -392,6 +393,7 @@ need to be defined at top level as keywords."
   (notes-list-reload)
   (notes-list-mode 1))
 
+;;;###autoload
 (defun notes ()
   "Display note list in current buffer"
   
