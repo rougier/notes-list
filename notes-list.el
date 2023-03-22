@@ -67,7 +67,17 @@
   :group 'notes-list)
 
 (defcustom notes-list-display-icons t
-  "Display icon on the left"
+  "Display icon on (left)"
+  :type 'boolean
+  :group 'notes-list)
+
+(defcustom notes-list-display-tags t
+  "Display tags (top right)"
+  :type 'boolean
+  :group 'notes-list)
+
+(defcustom notes-list-display-date t
+  "Display date (bottom right)"
   :type 'boolean
   :group 'notes-list)
 
@@ -90,6 +100,8 @@
   '((t (:inherit nano-faded)))
   "Face for notes time"
   :group 'notes-list)
+
+
 
 (defvar notes-list--icons nil
   "Icons cache")
@@ -168,26 +180,35 @@ truncated."
          (icon (or (cdr (assoc "ICON" note)) "note-outline"))
          (icon (notes-list--make-icon icon))
          (filename (cdr (assoc "FILENAME" note)))
+         
          (tags (or (cdr (assoc "TAGS" note)) ""))
          (tags (notes-list-format-tags tags))
+         (tags (if notes-list-display-tags
+                   tags
+                 ""))
+
          (time (or (cdr (assoc "TIME-MODIFICATION" note)) ""))
          (time (notes-list-format-time time))
+         (time (if notes-list-display-date
+                   time
+                 ""))
+
          (title (or (cdr (assoc "TITLE" note)) ""))
          (title (notes-list-format-title title))
-         (summary (or (cdr (assoc "SUMMARY" note)) ""))
-         (summary (notes-list-format-summary summary))
-
          (title (if notes-list-display-icons
                     (concat (car icon) " " title)
                   title))
-         (summary (if notes-list-display-icons
-                      (concat (cdr icon) " " summary)
-                    summary))
-         
          (title (concat (propertize " " 'display '(raise 0.5)) title))
          (title (truncate-string-to-width
                     title
                     (- width (length time) 1) nil nil "…"))
+         
+         (summary (or (cdr (assoc "SUMMARY" note)) ""))
+         (summary (notes-list-format-summary summary))
+         (summary (if notes-list-display-icons
+                      (concat (cdr icon) " " summary)
+                    summary))
+         
          (top-filler (propertize " " 'display
                                  `(space :align-to (- right ,(length time) 1))))
          (summary (concat (propertize " " 'display '(raise -0.5))
@@ -329,7 +350,7 @@ need to be defined at top level as keywords."
   (notes-list-refresh))
 
 (defun notes-list-refresh ()
-  "Rebuild the note list if necesary (no reload)"
+  "Rebuild the note list if necessary (no reload)"
   
   (interactive)
   (setq notes-list--notes
@@ -352,6 +373,33 @@ need to be defined at top level as keywords."
             (forward-line line)))
         (beginning-of-line)))))
 
+(defun notes-list-toggle-icons ()
+  "Toggle icons display"
+
+  (interactive)
+  (if notes-list-display-icons
+      (setq notes-list-display-icons nil)
+    (setq notes-list-display-icons t))
+  (notes-list-refresh))
+  
+(defun notes-list-toggle-date ()
+  "Toggle date display"
+
+  (interactive)
+  (if notes-list-display-date
+      (setq notes-list-display-date nil)
+    (setq notes-list-display-date t))
+  (notes-list-refresh))
+
+(defun notes-list-toggle-tags ()
+  "Toggle tags display"
+
+  (interactive)
+  (if notes-list-display-tags
+      (setq notes-list-display-tags nil)
+    (setq notes-list-display-tags t))
+  (notes-list-refresh))
+
 (defun notes-list-buffer ()
   "Return the notes list buffer"
 
@@ -362,6 +410,9 @@ need to be defined at top level as keywords."
   "A minor mode for browsing note list"
   
   :keymap (let ((map (make-sparse-keymap)))
+            (define-key map (kbd "d") #'notes-list-toggle-date)
+            (define-key map (kbd "i") #'notes-list-toggle-icons)
+            (define-key map (kbd "t") #'notes-list-toggle-tags)
             (define-key map (kbd "r") #'notes-list-reload)
             (define-key map (kbd "g") #'notes-list-refresh)
             (define-key map (kbd "q") #'notes-list-quit)
