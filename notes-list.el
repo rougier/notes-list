@@ -111,10 +111,14 @@
   "Make an icon from ICON name"
   
   (unless (assoc icon notes-list--icons)
-    (let* ( (collection (nth 0 (split-string icon "/")))
-            (name (nth 1 (split-string icon "/")))
-            (image (svg-lib-icon name nil :collection collection
-                                 :stroke 0 :scale .75 :padding 0))
+    (let* ((image (if (file-regular-p icon)
+                      (create-image icon)
+                    (let ((collection (nth 0 (split-string icon "/")))
+                          (name (nth 1 (split-string icon "/"))))
+                       (svg-lib-icon name nil :collection collection
+                                              :stroke 0
+                                              :scale .75
+                                              :padding 0))))
             (dy (frame-char-height))
             (dx (frame-char-width))
             (height (frame-char-height))
