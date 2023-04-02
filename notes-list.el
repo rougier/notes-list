@@ -102,6 +102,9 @@
   "Face for notes time"
   :group 'notes-list)
 
+(defvar notes-list--icons nil
+  "Icons cache")
+
 (defun notes-list--make-icon (icon)
   "Format given ICON description as a two lines square image.
 
