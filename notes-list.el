@@ -102,45 +102,57 @@
   "Face for notes time"
   :group 'notes-list)
 
-
-
-(defvar notes-list--icons nil
-  "Icons cache")
-
 (defun notes-list--make-icon (icon)
-  "Make an icon from ICON name"
-  
+  "Format given ICON description as a two lines square image.
+
+ICON can be either a filename or a string 'collection/icon-name'
+according to svg-lib. The resulting image fits exacly the character
+grid such that the squareness of the image is not guaranteed and
+depends on the character pixel size. The returned image is split in
+two parts (top . bottom)"
+
   (unless (assoc icon notes-list--icons)
     (let* ((image (if (file-regular-p icon)
                       (create-image icon)
                     (let ((collection (nth 0 (split-string icon "/")))
                           (name (nth 1 (split-string icon "/"))))
-                       (svg-lib-icon name nil :collection collection
-                                              :stroke 0
-                                              :scale .75
-                                              :padding 0))))
-            (dy (frame-char-height))
-            (dx (frame-char-width))
-            (height (frame-char-height))
-            (img-height (cdr (image-size image t)))
-            (img-height (* (+ (/ height dy) 1) dy))
-            (char-width (+ (/ img-height dx) 1))
-            (img-width (* char-width dx))
-            (thumbnail (cons (car image) (cl-copy-list (cdr image)))))
-      (plist-put (cdr thumbnail) :height img-height)
-      (plist-put (cdr thumbnail) :width nil)
-      (plist-put (cdr thumbnail) :ascent 80)
-      (let ((icon-1 (propertize (make-string char-width ? )
-                                'display (list (list 'slice 0  0 img-width dy) thumbnail)
-                                'line-height t))
-            (icon-2 (propertize (make-string char-width ? )
-                                'display (list (list 'slice 0  dy img-width dy) thumbnail)
-                                'line-height t)))
-        (setq notes-list--icons
-              (add-to-list 'notes-list--icons
-                           (cons icon (cons icon-1 icon-2)))))))
-  (cdr (assoc icon notes-list--icons)))
+                      (svg-lib-icon name nil :collection collection
+                                             :stroke 0
+                                             :scale .75
+                                             :padding 0))))
+           (img-width (car (image-size image t)))
+           (img-height (cdr (image-size image t)))
+           (ch (frame-char-height))
+           (cw (frame-char-width))
+           (icon-height (* 2 ch))
+           (char-width  (+ 1 (truncate (/ (* 2 ch) cw))))
+           (icon-width  (* char-width cw))
+           ;; (scale (if (< img-height img-width)
+           ;;           (/ (float icon-height) (float img-height))
+           ;;         (/ (float icon-width) (float img-width))))
+           (scale (/ (float icon-height) (float img-height)))
+           
+           (scaled-width (truncate (* scale img-width)))
+           (scaled-height (truncate (* scale img-height)))
+           (icon-true-width (truncate (* img-width scale)))
+           (margin (max 0 (- icon-width icon-true-width)))
+           (icon-width (+ icon-width (% margin 2)))
+           (margin (- margin (% margin 2)))
+           (thumbnail (cons (car image) (cl-copy-list (cdr image)))))
+    (plist-put (cdr thumbnail) :height scaled-height)
+    (plist-put (cdr thumbnail) :width  scaled-width)
+    (plist-put (cdr thumbnail) :margin (cons (/ margin 2) 0))
+    (plist-put (cdr thumbnail) :ascent 80)
 
+    (push (cons icon
+                (cons (propertize (make-string char-width ?-)
+                                  'display (list (list 'slice 0  0 icon-width ch) thumbnail)
+                                  'line-height t)
+                      (propertize (make-string char-width ?-)
+                                  'display (list (list 'slice 0  ch icon-width ch) thumbnail)
+                                  'line-height t)))
+          notes-list--icons)))
+    (cdr (assoc icon notes-list--icons)))
 
 (defvar notes-list--svg-tags nil
   "SVG tags cache")
