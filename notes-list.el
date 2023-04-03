@@ -67,6 +67,13 @@
                  (const :tag "Modification time" notes-list-compare-modification-time))
   :group 'notes-list)
 
+(defcustom notes-list-date-display 'modification
+  "Which date to display in the list"
+  :type '(choice (const :tag "Access time"       access)
+                 (const :tag "Creation time"     creation)
+                 (const :tag "Modification time" modification))
+  :group 'notes-list)
+
 (defcustom notes-list-display-icons t
   "Display icon on (left)"
   :type 'boolean
@@ -206,8 +213,14 @@ truncated."
          (tags (if notes-list-display-tags
                    tags
                  ""))
-
-         (time (or (cdr (assoc "TIME-MODIFICATION" note)) ""))
+         (time (or
+                (cond ((eq notes-list-date-display 'creation)
+                       (cdr (assoc "TIME-CREATION" note)))
+                      ((eq notes-list-date-display 'access)
+                       (cdr (assoc "TIME-ACCESS" note)))
+                      (t
+                       (cdr (assoc "TIME-MODIFICATION" note))))
+                   ""))
          (time (notes-list-format-time time))
          (time (if notes-list-display-date
                    time
