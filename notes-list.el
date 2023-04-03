@@ -67,6 +67,12 @@
                  (const :tag "Modification time" notes-list-compare-modification-time))
   :group 'notes-list)
 
+(defcustom notes-list-sort-order #'ascending
+  "Notes sorting order"
+  :type '(choice (const :tag "Ascending"  ascending)
+                 (const :tag "Descending" descending))
+  :group 'notes-list)
+
 (defcustom notes-list-date-display 'modification
   "Which date to display in the list"
   :type '(choice (const :tag "Access time"       access)
@@ -382,29 +388,39 @@ need to be defined at top level as keywords."
   (notes-list-collect-notes)
   (notes-list-refresh))
 
+(defun notes-list-reverse-sort-order ()
+  "Reverse sort order (ascending <-> descending)"
+
+  (interactive)
+  (if (eq notes-list-sort-order 'ascending)
+      (setq notes-list-sort-order 'descending)
+    (setq notes-list-sort-order 'ascending))
+  (notes-list-refresh))
+
+
 (defun notes-list-refresh ()
   "Rebuild the note list if necessary (no reload)"
   
   (interactive)
-  (setq notes-list--notes
-        (reverse (sort notes-list--notes
-                       #'notes-list-compare-modification-time)))
+
+  (let* ((notes (sort notes-list--notes notes-list-sort-function))
+         (notes (if (eq notes-list-sort-order #'ascending)
+                    notes
+                  (reverse notes))))
   (with-current-buffer (notes-list-buffer)
     (let ((filename (get-text-property (point) 'filename)))
       (beginning-of-line)
       (let ((line (count-lines 1 (point)))
             (inhibit-read-only t))
         (erase-buffer)
-        (insert (mapconcat #'notes-list-format
-                           notes-list--notes
-                           "\n"))
+        (insert (mapconcat #'notes-list-format notes "\n"))
         (insert "\n")
         (goto-char (point-min))
         (let ((match (text-property-search-forward 'filename filename t)))
           (if match
               (goto-char (prop-match-beginning match))
             (forward-line line)))
-        (beginning-of-line)))))
+        (beginning-of-line))))))
 
 (defun notes-list-toggle-icons ()
   "Toggle icons display"
@@ -449,6 +465,7 @@ need to be defined at top level as keywords."
             (define-key map (kbd "r") #'notes-list-reload)
             (define-key map (kbd "g") #'notes-list-refresh)
             (define-key map (kbd "q") #'notes-list-quit)
+            (define-key map (kbd "s") #'notes-list-reverse-sort-order)
             (define-key map (kbd "SPC") #'notes-list-show-note-other-window)
             (define-key map (kbd "<tab>") #'notes-list-open-note-other-window)
             (define-key map (kbd "<RET>") #'notes-list-open-note)
