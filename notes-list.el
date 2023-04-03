@@ -464,12 +464,5 @@ need to be defined at top level as keywords."
   (notes-list-reload)
   (notes-list-mode 1))
 
-;;;###autoload
-(defun notes ()
-  "Display note list in current buffer"
-  
-  (interactive)
-  (notes-list))
-
 (provide 'notes-list)
 ;;; notes-list.el ends here
