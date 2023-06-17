@@ -48,6 +48,7 @@
 (require 'svg-lib)
 (require 'svg-tag-mode)
 (require 'cl-lib)
+(require 'text-property-search)
 
 (defgroup notes-list nil
   "Note list"
@@ -219,7 +220,7 @@ two parts (top . bottom)"
   (propertize summary 'face 'notes-list-face-summary))
 
 
-(defun notes-list-format (note)
+(defun notes-list-insert-formatted (note)
   "This function format a note. Result is a two-lines string with
 title at top left, time at top-right, summary at bottom left and
 tags at bottom right. If TITLE or SUMMARY is too long, it is
@@ -264,19 +265,68 @@ truncated."
          (summary (if notes-list-display-icons
                       (concat (cdr icon) " " summary)
                     summary))
-
-         (top-filler (propertize " " 'display
-                                 `(space :align-to (- right ,(length time) 1))))
          (summary (concat (propertize " " 'display '(raise -0.5))
                               summary))
          (summary (truncate-string-to-width summary
-                             (- width (length tags) 1) nil nil "…"))
-         (bottom-filler (propertize " " 'display
-                                    `(space :align-to (- right ,(length tags) 1)))))
-    (propertize (concat title top-filler time
-                        (propertize " " 'display "\n")
-                        summary bottom-filler tags)
-                'filename filename)))
+                             (- width (length tags) 1) nil nil "…")))
+
+    (let ((start (point)))
+      (notes-list-insert-line-with-filler title time)
+      (notes-list-insert-line-with-filler summary tags)
+      (put-text-property start (point)
+                         'filename filename))))
+
+(defsubst notes-list--guaranteed-posn-at-point ()
+  (let ((posn (posn-at-point)))
+    (if posn
+        posn
+      ;; Force redisplay to make sure that posn-at-point works (and does not
+      ;; return nil)
+      (redisplay)
+      (posn-at-point))))
+
+(defun notes-list--pixel-width-between-points (point1 point2)
+  "Calculate pixel width of buffer contents between POINT1 and POINT2."
+  (save-excursion
+    (let* ((posn1 (progn
+                   (goto-char point1)
+                   (notes-list--guaranteed-posn-at-point)))
+           (posn2 (progn
+                    (goto-char point2)
+                    (notes-list--guaranteed-posn-at-point)))
+           (ydelta (- (cdaddr posn2)
+                      (cdaddr posn1)))
+           (window-width (window-width (selected-window) t))
+           (line-height (line-pixel-height))
+           (lines 1))
+      (when (> ydelta 0)
+        (setq lines (+ (/ ydelta line-height) 1)))
+
+      (let ((width (* lines window-width)))
+        (setq width (- width (caaddr posn1) (- window-width (caaddr posn2))))))))
+
+(defun notes-list-insert-line-with-filler (item1 item2)
+  "Insert ITEM1 and ITEM2, filling the space between them to guarantee a line width of `window-width'."
+  (let ((start-of-line (point)))
+    (insert item1)
+    (let ((item2-start (point))
+          (item2-end)
+          (item1-pixel-width (notes-list--pixel-width-between-points start-of-line (point)))
+          (item2-pixel-width)
+          (window-width (window-text-width (selected-window) t))
+          (filler-width))
+      (insert item2)
+      (setq item2-end (point))
+      (setq item2-pixel-width (notes-list--pixel-width-between-points item2-start item2-end))
+      (goto-char item2-start)
+      (setq filler-width (- window-width item1-pixel-width item2-pixel-width))
+      (insert
+       (propertize " " 'display
+                   `(space :width (,filler-width))))
+
+      ;; Go to the end of whatever has been inserted
+      (goto-char (+ item2-end (- (point) item2-start))))))
+
 
 (defun notes-list-parse-org-note (filename)
   "Parse an org file and extract title, date, summary and tags that
@@ -439,7 +489,9 @@ need to be defined at top level as keywords."
       (let ((line (count-lines 1 (point)))
             (inhibit-read-only t))
         (erase-buffer)
-        (insert (mapconcat #'notes-list-format notes "\n"))
+        (dolist (note notes)
+          (notes-list-insert-formatted note)
+          (insert "\n"))
         (insert "\n")
         (goto-char (point-min))
         (let ((match (text-property-search-forward 'filename filename t)))
