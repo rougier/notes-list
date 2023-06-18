@@ -276,24 +276,18 @@ truncated."
       (put-text-property start (point)
                          'filename filename))))
 
-(defsubst notes-list--guaranteed-posn-at-point ()
-  (let ((posn (posn-at-point)))
-    (if posn
-        posn
-      ;; Force redisplay to make sure that posn-at-point works (and does not
-      ;; return nil)
-      (redisplay)
-      (posn-at-point))))
-
 (defun notes-list--pixel-width-between-points (point1 point2)
   "Calculate pixel width of buffer contents between POINT1 and POINT2."
+  ;; Force redisplay to make sure that posn-at-point is accurate (and does not
+  ;; return nil)
+  (redisplay)
   (save-excursion
     (let* ((posn1 (progn
                    (goto-char point1)
-                   (notes-list--guaranteed-posn-at-point)))
+                   (posn-at-point)))
            (posn2 (progn
                     (goto-char point2)
-                    (notes-list--guaranteed-posn-at-point)))
+                    (posn-at-point)))
            (ydelta (- (cdaddr posn2)
                       (cdaddr posn1)))
            (window-width (window-width (selected-window) t))
@@ -450,7 +444,6 @@ need to be defined at top level as keywords."
 
 (defun notes-list--resize-hook (frame)
   "Refresh notes list if necessary"
-
   (when-let* ((window (get-buffer-window (notes-list-buffer))))
     (let ((window-width (window-width window)))
       (unless (eq window-width notes-list--buffer-width)
