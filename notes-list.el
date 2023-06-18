@@ -268,7 +268,7 @@ truncated."
          (summary (concat (propertize " " 'display '(raise -0.5))
                               summary))
          (summary (truncate-string-to-width summary
-                             (- width (length tags) 1) nil nil "…")))
+                             (- width (length tags) 2) nil nil "…")))
 
     (let ((start (point)))
       (notes-list-insert-line-with-filler title time)
@@ -278,9 +278,12 @@ truncated."
 
 (defun notes-list--pixel-width-between-points (point1 point2)
   "Calculate pixel width of buffer contents between POINT1 and POINT2."
+  ;; Recenter to make as likely as possible for point to be visible in the
+  ;; current window. This is required for posn-at-point not to return nil.
+  (recenter)
   ;; Force redisplay to make sure that posn-at-point is accurate (and does not
   ;; return nil)
-  (redisplay)
+  (redisplay t)
   (save-excursion
     (let* ((posn1 (progn
                    (goto-char point1)
@@ -437,7 +440,7 @@ need to be defined at top level as keywords."
   (interactive)
   (let ((filename (get-text-property (point) 'filename)))
     (with-selected-window (next-window)
-    (find-file filename))))
+      (find-file filename))))
 
 (defvar notes-list--buffer-width nil
   "Notes list buffer width")
@@ -445,7 +448,7 @@ need to be defined at top level as keywords."
 (defun notes-list--resize-hook (frame)
   "Refresh notes list if necessary"
   (when-let* ((window (get-buffer-window (notes-list-buffer))))
-    (let ((window-width (window-width window)))
+    (let ((window-width (window-text-width window t)))
       (unless (eq window-width notes-list--buffer-width)
         (notes-list-refresh))
       (setq notes-list--buffer-width window-width))))
@@ -472,26 +475,29 @@ need to be defined at top level as keywords."
 
   (interactive)
 
-  (let* ((notes (sort notes-list--notes notes-list-sort-function))
-         (notes (if (eq notes-list-sort-order #'ascending)
-                    notes
-                  (reverse notes))))
-  (with-current-buffer (notes-list-buffer)
-    (let ((filename (get-text-property (point) 'filename)))
-      (beginning-of-line)
-      (let ((line (count-lines 1 (point)))
-            (inhibit-read-only t))
-        (erase-buffer)
-        (dolist (note notes)
-          (notes-list-insert-formatted note)
-          (insert "\n"))
-        (insert "\n")
-        (goto-char (point-min))
-        (let ((match (text-property-search-forward 'filename filename t)))
-          (if match
-              (goto-char (prop-match-beginning match))
-            (forward-line line)))
-        (beginning-of-line))))))
+  (when-let* ((window (get-buffer-window (notes-list-buffer))))
+    (with-selected-window window
+      (let* ((notes (cl-copy-list notes-list--notes))
+             (notes (sort notes notes-list-sort-function))
+             (notes (if (eq notes-list-sort-order #'ascending)
+                        notes
+                      (reverse notes))))
+        (with-current-buffer (notes-list-buffer)
+          (let ((filename (get-text-property (point) 'filename)))
+            (beginning-of-line)
+            (let ((line (count-lines 1 (point)))
+                  (inhibit-read-only t))
+              (erase-buffer)
+              (dolist (note notes)
+                (notes-list-insert-formatted note)
+                (insert "\n"))
+              (insert "\n")
+              (goto-char (point-min))
+              (let ((match (text-property-search-forward 'filename filename t)))
+                (if match
+                    (goto-char (prop-match-beginning match))
+                  (forward-line line)))
+              (beginning-of-line))))))))
 
 (defun notes-list-toggle-icons ()
   "Toggle icons display"
