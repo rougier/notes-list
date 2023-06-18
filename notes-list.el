@@ -6,7 +6,7 @@
 ;; URL: https://github.com/rougier/notes-list
 ;; Version: 0.1.0
 ;; Package-Requires: ((emacs "27.1"))
-;; Keywords: convenience 
+;; Keywords: convenience
 
 ;; This file is not part of GNU Emacs.
 
@@ -49,6 +49,7 @@
 (require 'svg-tag-mode)
 (require 'nano-theme)
 (require 'cl-lib)
+(require 'text-property-search)
 
 (defgroup notes-list nil
   "Note list"
@@ -147,7 +148,7 @@ two parts (top . bottom)"
            ;;           (/ (float icon-height) (float img-height))
            ;;         (/ (float icon-width) (float img-width))))
            (scale (/ (float icon-height) (float img-height)))
-           
+
            (scaled-width (truncate (* scale img-width)))
            (scaled-height (truncate (* scale img-height)))
            (icon-true-width (truncate (* img-width scale)))
@@ -182,7 +183,7 @@ two parts (top . bottom)"
 
 (defun notes-list-format-tags (tags)
   "Transform a list of tags into a SVG tags string"
-  
+
   (mapconcat (lambda (tag)
                (unless (assoc tag notes-list--svg-tags)
                  (setq notes-list--svg-tags
@@ -202,7 +203,7 @@ two parts (top . bottom)"
   (propertize summary 'face 'notes-list-face-summary))
 
 
-(defun notes-list-format (note)
+(defun notes-list-insert-formatted (note)
   "This function format a note. Result is a two-lines string with
 title at top left, time at top-right, summary at bottom left and
 tags at bottom right. If TITLE or SUMMARY is too long, it is
@@ -213,7 +214,7 @@ truncated."
          (icon (or (cdr (assoc "ICON" note)) "note-outline"))
          (icon (notes-list--make-icon icon))
          (filename (cdr (assoc "FILENAME" note)))
-         
+
          (tags (or (cdr (assoc "TAGS" note)) ""))
          (tags (notes-list-format-tags tags))
          (tags (if notes-list-display-tags
@@ -241,25 +242,71 @@ truncated."
          (title (truncate-string-to-width
                     title
                     (- width (length time) 1) nil nil "…"))
-         
+
          (summary (or (cdr (assoc "SUMMARY" note)) ""))
          (summary (notes-list-format-summary summary))
          (summary (if notes-list-display-icons
                       (concat (cdr icon) " " summary)
                     summary))
-         
-         (top-filler (propertize " " 'display
-                                 `(space :align-to (- right ,(length time) 1))))
          (summary (concat (propertize " " 'display '(raise -0.5))
                               summary))
          (summary (truncate-string-to-width summary
-                             (- width (length tags) 1) nil nil "…"))
-         (bottom-filler (propertize " " 'display
-                                    `(space :align-to (- right ,(length tags) 1)))))
-    (propertize (concat title top-filler time
-                        (propertize " " 'display "\n")
-                        summary bottom-filler tags)
-                'filename filename)))
+                             (- width (length tags) 2) nil nil "…")))
+
+    (let ((start (point)))
+      (notes-list-insert-line-with-filler title time)
+      (notes-list-insert-line-with-filler summary tags)
+      (put-text-property start (point)
+                         'filename filename))))
+
+(defun notes-list--pixel-width-between-points (point1 point2)
+  "Calculate pixel width of buffer contents between POINT1 and POINT2."
+  ;; Recenter to make as likely as possible for point to be visible in the
+  ;; current window. This is required for posn-at-point not to return nil.
+  (recenter)
+  ;; Force redisplay to make sure that posn-at-point is accurate (and does not
+  ;; return nil)
+  (redisplay t)
+  (save-excursion
+    (let* ((posn1 (progn
+                   (goto-char point1)
+                   (posn-at-point)))
+           (posn2 (progn
+                    (goto-char point2)
+                    (posn-at-point)))
+           (ydelta (- (cdaddr posn2)
+                      (cdaddr posn1)))
+           (window-width (window-width (selected-window) t))
+           (line-height (line-pixel-height))
+           (lines 1))
+      (when (> ydelta 0)
+        (setq lines (+ (/ ydelta line-height) 1)))
+
+      (let ((width (* lines window-width)))
+        (setq width (- width (caaddr posn1) (- window-width (caaddr posn2))))))))
+
+(defun notes-list-insert-line-with-filler (item1 item2)
+  "Insert ITEM1 and ITEM2, filling the space between them to guarantee a line width of `window-width'."
+  (let ((start-of-line (point)))
+    (insert item1)
+    (let ((item2-start (point))
+          (item2-end)
+          (item1-pixel-width (notes-list--pixel-width-between-points start-of-line (point)))
+          (item2-pixel-width)
+          (window-width (window-text-width (selected-window) t))
+          (filler-width))
+      (insert item2)
+      (setq item2-end (point))
+      (setq item2-pixel-width (notes-list--pixel-width-between-points item2-start item2-end))
+      (goto-char item2-start)
+      (setq filler-width (- window-width item1-pixel-width item2-pixel-width))
+      (insert
+       (propertize " " 'display
+                   `(space :width (,filler-width))))
+
+      ;; Go to the end of whatever has been inserted
+      (goto-char (+ item2-end (- (point) item2-start))))))
+
 
 (defun notes-list-parse-org-note (filename)
   "Parse an org file and extract title, date, summary and tags that
@@ -324,7 +371,7 @@ need to be defined at top level as keywords."
 
 (defun notes-list-collect-notes ()
   "Collect notes from note directories"
-  
+
   (let ((notes nil)
         (recentf-list-saved recentf-list))
     (dolist (directory notes-list-directories)
@@ -367,16 +414,15 @@ need to be defined at top level as keywords."
   (interactive)
   (let ((filename (get-text-property (point) 'filename)))
     (with-selected-window (next-window)
-    (find-file filename))))
+      (find-file filename))))
 
 (defvar notes-list--buffer-width nil
   "Notes list buffer width")
 
 (defun notes-list--resize-hook (frame)
   "Refresh notes list if necessary"
-
   (when-let* ((window (get-buffer-window (notes-list-buffer))))
-    (let ((window-width (window-width window)))
+    (let ((window-width (window-text-width window t)))
       (unless (eq window-width notes-list--buffer-width)
         (notes-list-refresh))
       (setq notes-list--buffer-width window-width))))
@@ -400,27 +446,32 @@ need to be defined at top level as keywords."
 
 (defun notes-list-refresh ()
   "Rebuild the note list if necessary (no reload)"
-  
+
   (interactive)
 
-  (let* ((notes (sort notes-list--notes notes-list-sort-function))
-         (notes (if (eq notes-list-sort-order #'ascending)
-                    notes
-                  (reverse notes))))
-  (with-current-buffer (notes-list-buffer)
-    (let ((filename (get-text-property (point) 'filename)))
-      (beginning-of-line)
-      (let ((line (count-lines 1 (point)))
-            (inhibit-read-only t))
-        (erase-buffer)
-        (insert (mapconcat #'notes-list-format notes "\n"))
-        (insert "\n")
-        (goto-char (point-min))
-        (let ((match (text-property-search-forward 'filename filename t)))
-          (if match
-              (goto-char (prop-match-beginning match))
-            (forward-line line)))
-        (beginning-of-line))))))
+  (when-let* ((window (get-buffer-window (notes-list-buffer))))
+    (with-selected-window window
+      (let* ((notes (cl-copy-list notes-list--notes))
+             (notes (sort notes notes-list-sort-function))
+             (notes (if (eq notes-list-sort-order #'ascending)
+                        notes
+                      (reverse notes))))
+        (with-current-buffer (notes-list-buffer)
+          (let ((filename (get-text-property (point) 'filename)))
+            (beginning-of-line)
+            (let ((line (count-lines 1 (point)))
+                  (inhibit-read-only t))
+              (erase-buffer)
+              (dolist (note notes)
+                (notes-list-insert-formatted note)
+                (insert "\n"))
+              (insert "\n")
+              (goto-char (point-min))
+              (let ((match (text-property-search-forward 'filename filename t)))
+                (if match
+                    (goto-char (prop-match-beginning match))
+                  (forward-line line)))
+              (beginning-of-line))))))))
 
 (defun notes-list-toggle-icons ()
   "Toggle icons display"
@@ -430,7 +481,7 @@ need to be defined at top level as keywords."
       (setq notes-list-display-icons nil)
     (setq notes-list-display-icons t))
   (notes-list-refresh))
-  
+
 (defun notes-list-toggle-date ()
   "Toggle date display"
 
@@ -457,7 +508,7 @@ need to be defined at top level as keywords."
 
 (define-minor-mode notes-list-mode
   "A minor mode for browsing note list"
-  
+
   :keymap (let ((map (make-sparse-keymap)))
             (define-key map (kbd "d") #'notes-list-toggle-date)
             (define-key map (kbd "i") #'notes-list-toggle-icons)
@@ -488,7 +539,7 @@ need to be defined at top level as keywords."
 ;;;###autoload
 (defun notes-list ()
   "Display note list in current buffer"
-  
+
   (interactive)
   (switch-to-buffer (notes-list-buffer))
   (notes-list-reload)
