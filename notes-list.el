@@ -67,7 +67,7 @@
                  (const :tag "Modification time" notes-list-compare-modification-time))
   :group 'notes-list)
 
-(defcustom notes-list-sort-order #'ascending
+(defcustom notes-list-sort-order #'descending
   "Notes sorting order"
   :type '(choice (const :tag "Ascending"  ascending)
                  (const :tag "Descending" descending))
