@@ -351,7 +351,7 @@ need to be defined at top level as keywords."
 (defun notes-list-collect-org-notes ()
   (let ((notes nil))
     (dolist (directory notes-list-directories)
-      (dolist (filename (directory-files directory t ".*\\.org"))
+      (dolist (filename (directory-files directory t ".*\\.org$"))
         (when (notes-list-note-p filename)
           (let ((note (notes-list-parse-org-note filename)))
             (setq notes (add-to-list 'notes note))))))
